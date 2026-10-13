@@ -1,0 +1,4 @@
+numpy>=1.24
+Pillow>=9.0
+matplotlib>=3.5
+scikit-image>=0.20     # only needed by scripts/make_dataset.py (to rebuild the bundled dataset)
