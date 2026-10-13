@@ -1,11 +1,12 @@
 """Pure-NumPy implementation of SRCNN with hand-written forward/backward passes.
 
-Architecture (Dong et al., 2015), "same" padding, NHWC layout:
+Architecture (Dong et al., 2015 / CS229 report), "same" padding, NHWC layout:
     conv1: 9x9, 3  -> 64  (+ optional BatchNorm) + ReLU   patch extraction
     conv2: 1x1, 64 -> 32  (+ optional BatchNorm) + ReLU   non-linear mapping
     conv3: 5x5, 32 -> 3   (+ optional tanh output)         reconstruction
 Input is the bicubic-upsampled low-resolution image, values in [0, 1].
 """
+import os
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
@@ -79,7 +80,7 @@ class BatchNorm:
 class SRCNN:
     def __init__(self, use_bn=False, use_tanh=False, residual=False, f=(64, 32), k=(9, 1, 5), seed=0):
         rng = np.random.default_rng(seed)
-        self.use_bn, self.use_tanh, self.residual, self.k = use_bn, use_tanh, residual, k
+        self.use_bn, self.use_tanh, self.residual, self.k, self.f = use_bn, use_tanh, residual, k, f
         self.pad = tuple((s - 1) // 2 for s in k)
         chans = [3, f[0], f[1], 3]
         self.W, self.b = [], []
@@ -122,8 +123,10 @@ class SRCNN:
         return h
 
     def predict(self, x, bs=2):
+        if x.ndim == 3:
+            x = x[np.newaxis, ...]
         out = [self.forward(x[i:i + bs], train=False) for i in range(0, len(x), bs)]
-        return np.clip(np.concatenate(out), 0.0, 1.0)
+        return np.clip(np.concatenate(out, axis=0), 0.0, 1.0)
 
     def backward(self, dout):
         """dout = dLoss/dOutput. Returns grads aligned with self.params()."""
@@ -146,18 +149,36 @@ class SRCNN:
         return g
 
     def save(self, path):
+        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         s = {f"W{i}": self.W[i] for i in range(3)}
         s.update({f"b{i}": self.b[i] for i in range(3)})
         for i, bn in enumerate(self.bn):
             s.update({f"gamma{i}": bn.gamma, f"beta{i}": bn.beta, f"rm{i}": bn.rm, f"rv{i}": bn.rv})
-        s["use_bn"], s["use_tanh"], s["residual"] = int(self.use_bn), int(self.use_tanh), int(self.residual)
+        s["use_bn"] = int(self.use_bn)
+        s["use_tanh"] = int(self.use_tanh)
+        s["residual"] = int(self.residual)
+        s["f"] = np.array(self.f, dtype=np.int32)
+        s["k"] = np.array(self.k, dtype=np.int32)
         np.savez(path, **s)
 
     @classmethod
     def load(cls, path):
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Model checkpoint not found at '{path}'.\n"
+                "Please verify the path, train a model with 'python scripts/train.py', "
+                "or use one of the pre-trained checkpoints in results/ (e.g. results/lr_0.001_no_bn.npz)."
+            )
         z = np.load(path)
-        m = cls(use_bn=bool(z["use_bn"]), use_tanh=bool(z["use_tanh"]),
-                residual=bool(z["residual"]) if "residual" in z.files else False)
+        f = tuple(int(x) for x in z["f"]) if "f" in z.files else (64, 32)
+        k = tuple(int(x) for x in z["k"]) if "k" in z.files else (9, 1, 5)
+        m = cls(
+            use_bn=bool(z["use_bn"]) if "use_bn" in z.files else False,
+            use_tanh=bool(z["use_tanh"]) if "use_tanh" in z.files else False,
+            residual=bool(z["residual"]) if "residual" in z.files else False,
+            f=f,
+            k=k
+        )
         m.W = [z[f"W{i}"].copy() for i in range(3)]
         m.b = [z[f"b{i}"].copy() for i in range(3)]
         for i, bn in enumerate(m.bn):

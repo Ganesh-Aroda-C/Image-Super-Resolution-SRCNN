@@ -1,4 +1,16 @@
+# Core numerical and image processing
 numpy>=1.24
 Pillow>=9.0
 matplotlib>=3.5
-scikit-image>=0.20     # only needed by scripts/make_dataset.py (to rebuild the bundled dataset)
+scikit-image>=0.20
+scipy>=1.10
+
+# Testing
+pytest>=7.0
+
+# Deep Learning (PyTorch)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Interactive Demo (Optional)
+streamlit>=1.20
