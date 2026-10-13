@@ -11,6 +11,13 @@ so the project runs on any laptop with Python 3.9+.
 Low-res image (112x112) -> bicubic x2 -> [9x9 conv, 64] ReLU -> [1x1 conv, 32] ReLU -> [5x5 conv, 3] -> High-res (224x224)
                                           patch extraction        non-linear mapping      reconstruction
 ```
+**Team Details**
+
+- **Team Member 1:** Ganesh Aroda C
+- **SRN:** PES1UG24AM102
+- **Team Member 2:** Hanshal
+- **SRN:** PES1UG24AM110
+
 
 ## 1. Setup (2 minutes)
 
